@@ -173,6 +173,110 @@
     .menu-card .menu-icon { font-size: 1.8rem; margin-bottom: 6px; }
 
     .loading { text-align: center; color: #aaa; padding: 12px; font-size: 0.9rem; }
+
+    @media (max-width: 768px) {
+      body {
+        font-size: 16px;
+        line-height: 1.55;
+      }
+
+      #login-screen h1 {
+        font-size: 2rem;
+        text-align: center;
+        padding: 0 20px;
+      }
+
+      #login-screen input,
+      #login-screen button {
+        width: min(320px, calc(100vw - 32px));
+        min-height: 50px;
+        font-size: 1.05rem;
+      }
+
+      #login-error {
+        font-size: 1rem;
+      }
+
+      header {
+        padding: 16px;
+      }
+
+      header h1 {
+        font-size: 1.35rem;
+      }
+
+      header button {
+        min-height: 42px;
+        padding: 8px 16px;
+        font-size: 1rem;
+      }
+
+      .container {
+        padding: 14px;
+      }
+
+      .section-title {
+        font-size: 1.2rem;
+        margin: 24px 0 12px;
+        padding-left: 12px;
+      }
+
+      .notice-box {
+        padding: 16px;
+      }
+
+      .notice-box .notice-label {
+        font-size: 1.05rem;
+      }
+
+      .notice-item {
+        font-size: 1rem;
+        line-height: 1.6;
+        padding: 8px 0;
+      }
+
+      .stats-grid {
+        gap: 12px;
+      }
+
+      .stat-card {
+        padding: 16px 12px;
+      }
+
+      .stat-card .stat-value {
+        font-size: 1.7rem;
+      }
+
+      .stat-card .stat-label {
+        font-size: 0.98rem;
+        line-height: 1.4;
+      }
+
+      .report-table th,
+      .report-table td {
+        font-size: 1rem;
+        padding: 12px;
+      }
+
+      .menu-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .menu-card {
+        font-size: 1.08rem;
+        padding: 20px 16px;
+      }
+
+      .menu-card .menu-icon {
+        font-size: 2rem;
+        margin-bottom: 8px;
+      }
+
+      .loading {
+        font-size: 1rem;
+      }
+    }
   </style>
 </head>
 <body>
