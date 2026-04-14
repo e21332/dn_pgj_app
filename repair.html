@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>維修管理</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="back-btn">⬅ 回首頁</a>
+  <h1>🔧 維修管理</h1>
+</header>
+
+<div class="container">
+
+  <div class="section-title">🔧 維修記錄</div>
+  <div class="toolbar">
+    <select id="filter-repair-status" onchange="loadRepairs()">
+      <option value="">全部狀態</option>
+      <option value="維修中">維修中</option>
+      <option value="已修復">已修復</option>
+    </select>
+    <button class="btn-primary" onclick="openRepairModal()">＋ 新增維修</button>
+  </div>
+  <div id="repair-list" class="card-list"><div class="loading">載入中...</div></div>
+
+</div>
+
+<a href="#" class="fab">▲</a>
+
+<!-- 維修 Modal -->
+<div id="repair-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2 id="repair-modal-title">新增維修記錄</h2>
+    <input type="hidden" id="repair-id" />
+    <label>樂器</label>
+    <select id="repair-instrument"></select>
+    <label>發生日期</label>
+    <input type="date" id="repair-date" />
+    <label>故障狀況</label>
+    <textarea id="repair-issue" rows="3" placeholder="描述故障情形"></textarea>
+    <label>維修費用</label>
+    <input type="number" id="repair-cost" placeholder="0（未知可留空）" />
+    <label>維修狀態</label>
+    <select id="repair-status">
+      <option value="維修中">維修中</option>
+      <option value="已修復">已修復</option>
+    </select>
+    <label>備註</label>
+    <textarea id="repair-note" rows="2" placeholder="管理者自述事件經過"></textarea>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('repair-modal')">取消</button>
+      <button class="btn-primary" onclick="saveRepair()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  checkAuth();
+  loadSelects();
+  loadRepairs();
+
+  function loadSelects() {
+    fetchData("getInventory", {}, res => {
+      const sel = document.getElementById("repair-instrument");
+      (res.data || []).forEach(i => sel.innerHTML += `<option value="${i.id}">${i.name}</option>`);
+    });
+  }
+
+  function loadRepairs() {
+    const status = document.getElementById("filter-repair-status").value;
+    fetchData("getRepairs", { status }, res => {
+      const list = document.getElementById("repair-list");
+      if (!res.data || res.data.length === 0) { list.innerHTML = `<div class="empty">尚無資料</div>`; return; }
+
+      // 依樂器分組
+      const grouped = {};
+      res.data.forEach(r => {
+        if (!grouped[r.instrument]) grouped[r.instrument] = [];
+        grouped[r.instrument].push(r);
+      });
+
+      list.innerHTML = Object.entries(grouped).map(([instrument, records]) => `
+        <div class="card">
+          <div class="card-title" style="margin-bottom:8px">🎵 ${instrument}</div>
+          ${records.map(r => `
+            <div class="repair-record">
+              <div class="card-row">
+                <span class="card-sub">第 ${r.count} 次｜${r.date}</span>
+                <span class="badge badge-${r.status === "維修中" ? "red" : "green"}">${r.status}</span>
+              </div>
+              <div class="card-sub">${r.issue}</div>
+              ${r.cost ? `<div class="card-sub">維修費用：$${Number(r.cost).toLocaleString()}</div>` : ""}
+              ${r.note ? `<div class="card-sub">備註：${r.note}</div>` : ""}
+              <button class="btn-small" onclick="openEditRepair(${JSON.stringify(r).replace(/"/g,'&quot;')})">編輯</button>
+            </div>`).join('<hr class="record-divider">')}
+        </div>`).join("");
+    });
+  }
+
+  function openRepairModal() {
+    document.getElementById("repair-modal-title").textContent = "新增維修記錄";
+    document.getElementById("repair-id").value = "";
+    document.getElementById("repair-date").value = new Date().toISOString().slice(0,10);
+    document.getElementById("repair-issue").value = "";
+    document.getElementById("repair-cost").value = "";
+    document.getElementById("repair-status").value = "維修中";
+    document.getElementById("repair-note").value = "";
+    document.getElementById("repair-modal").style.display = "flex";
+  }
+
+  function openEditRepair(r) {
+    document.getElementById("repair-modal-title").textContent = "編輯維修記錄";
+    document.getElementById("repair-id").value = r.id;
+    document.getElementById("repair-instrument").value = r.instrumentId;
+    document.getElementById("repair-date").value = r.date;
+    document.getElementById("repair-issue").value = r.issue;
+    document.getElementById("repair-cost").value = r.cost || "";
+    document.getElementById("repair-status").value = r.status;
+    document.getElementById("repair-note").value = r.note || "";
+    document.getElementById("repair-modal").style.display = "flex";
+  }
+
+  function saveRepair() {
+    const issue = document.getElementById("repair-issue").value.trim();
+    if (!issue) return alert("請填寫故障狀況");
+    fetchData("saveRepair", {
+      id: document.getElementById("repair-id").value,
+      instrument: document.getElementById("repair-instrument").value,
+      date: document.getElementById("repair-date").value,
+      issue,
+      cost: document.getElementById("repair-cost").value,
+      status: document.getElementById("repair-status").value,
+      note: document.getElementById("repair-note").value,
+    }, res => {
+      if (res.success) { closeModal("repair-modal"); loadRepairs(); }
+    });
+  }
+</script>
+</body>
+</html>

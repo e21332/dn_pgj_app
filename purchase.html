@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>進貨管理</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="back-btn">⬅ 回首頁</a>
+  <h1>📦 進貨管理</h1>
+</header>
+
+<div class="container">
+
+  <div class="section-title">📋 進貨記錄</div>
+  <div class="toolbar">
+    <input type="month" id="filter-month" onchange="loadPurchases()" />
+    <button class="btn-primary" onclick="openPurchaseModal()">＋ 新增進貨</button>
+  </div>
+  <div id="purchase-list" class="card-list"><div class="loading">載入中...</div></div>
+
+</div>
+
+<a href="#" class="fab">▲</a>
+
+<!-- 進貨 Modal -->
+<div id="purchase-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>新增進貨</h2>
+    <label>樂器</label>
+    <select id="purchase-instrument"></select>
+    <label>供應商</label>
+    <select id="purchase-supplier"></select>
+    <label>進貨日期</label>
+    <input type="date" id="purchase-date" />
+    <label>數量</label>
+    <input type="number" id="purchase-qty" placeholder="1" min="1" />
+    <label>進貨成本（總計）</label>
+    <input type="number" id="purchase-cost" placeholder="0" />
+    <label>備註</label>
+    <input type="text" id="purchase-note" placeholder="例：含琴弓、松香" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('purchase-modal')">取消</button>
+      <button class="btn-primary" onclick="savePurchase()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  checkAuth();
+  document.getElementById("filter-month").value = new Date().toISOString().slice(0,7);
+  loadSelects();
+  loadPurchases();
+
+  function loadSelects() {
+    fetchData("getInventory", {}, res => {
+      const sel = document.getElementById("purchase-instrument");
+      (res.data || []).forEach(i => sel.innerHTML += `<option value="${i.id}">${i.name}</option>`);
+    });
+    fetchData("getContacts", { type: "廠商" }, res => {
+      const sel = document.getElementById("purchase-supplier");
+      (res.data || []).forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+    });
+  }
+
+  function loadPurchases() {
+    const month = document.getElementById("filter-month").value;
+    fetchData("getPurchases", { month }, res => {
+      const list = document.getElementById("purchase-list");
+      if (!res.data || res.data.length === 0) { list.innerHTML = `<div class="empty">尚無資料</div>`; return; }
+      list.innerHTML = res.data.map(p => `
+        <div class="card">
+          <div class="card-row">
+            <span class="card-title">${p.instrument}</span>
+            <span class="card-sub">數量 ${p.qty} 件｜成本 $${Number(p.cost).toLocaleString()}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-sub">${p.supplier}｜${p.date}</span>
+          </div>
+          ${p.note ? `<div class="card-sub">${p.note}</div>` : ""}
+        </div>`).join("");
+    });
+  }
+
+  function openPurchaseModal() {
+    document.getElementById("purchase-date").value = new Date().toISOString().slice(0,10);
+    document.getElementById("purchase-modal").style.display = "flex";
+  }
+
+  function savePurchase() {
+    const instrument = document.getElementById("purchase-instrument").value;
+    const cost = document.getElementById("purchase-cost").value;
+    if (!instrument || !cost) return alert("請填寫樂器與進貨成本");
+    fetchData("savePurchase", {
+      instrument,
+      supplier: document.getElementById("purchase-supplier").value,
+      date: document.getElementById("purchase-date").value,
+      qty: document.getElementById("purchase-qty").value,
+      cost,
+      note: document.getElementById("purchase-note").value,
+    }, res => {
+      if (res.success) { closeModal("purchase-modal"); loadPurchases(); }
+    });
+  }
+</script>
+</body>
+</html>

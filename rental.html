@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>租用管理</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="back-btn">⬅ 回首頁</a>
+  <h1>📋 租用管理</h1>
+</header>
+
+<div class="container">
+
+  <!-- 租用合約 -->
+  <div class="section-title">📄 租用合約</div>
+  <div class="toolbar">
+    <select id="filter-contract-status" onchange="loadContracts()">
+      <option value="">全部狀態</option>
+      <option value="租用中">租用中</option>
+      <option value="即將到期">即將到期</option>
+      <option value="已結束">已結束</option>
+    </select>
+    <button class="btn-primary" onclick="openContractModal()">＋ 新增合約</button>
+  </div>
+  <div id="contract-list" class="card-list"><div class="loading">載入中...</div></div>
+
+  <!-- 押金記錄 -->
+  <div class="section-title">💰 押金記錄</div>
+  <div id="deposit-list" class="card-list"><div class="loading">載入中...</div></div>
+
+  <!-- 租金繳款 -->
+  <div class="section-title">🧾 租金繳款記錄</div>
+  <div class="toolbar">
+    <select id="filter-payment-status" onchange="loadPayments()">
+      <option value="">全部狀態</option>
+      <option value="未繳">未繳</option>
+      <option value="已繳清">已繳清</option>
+      <option value="逾期">逾期</option>
+    </select>
+  </div>
+  <div id="payment-list" class="card-list"><div class="loading">載入中...</div></div>
+
+</div>
+
+<a href="#" class="fab">▲</a>
+
+<!-- 合約 Modal -->
+<div id="contract-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>新增租用合約</h2>
+    <label>顧客</label>
+    <select id="contract-customer"></select>
+    <label>樂器</label>
+    <select id="contract-instrument"></select>
+    <label>續租次數</label>
+    <input type="text" id="contract-renew" placeholder="例：首次、第1次續租" />
+    <label>開始日</label>
+    <input type="date" id="contract-start" />
+    <label>結束日</label>
+    <input type="date" id="contract-end" />
+    <label>月租金</label>
+    <input type="number" id="contract-rent" placeholder="0" />
+    <label>每月繳款日（日）</label>
+    <input type="number" id="contract-due-day" placeholder="例：1 或 15" min="1" max="31" />
+    <label>押金金額</label>
+    <input type="number" id="contract-deposit" placeholder="0" />
+    <label>備註</label>
+    <input type="text" id="contract-note" placeholder="選填" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('contract-modal')">取消</button>
+      <button class="btn-primary" onclick="saveContract()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 繳款 Modal -->
+<div id="payment-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>登錄繳款</h2>
+    <input type="hidden" id="payment-id" />
+    <p id="payment-info" style="margin-bottom:12px;color:#555;font-size:0.9rem;"></p>
+    <label>實際繳款日</label>
+    <input type="date" id="payment-date" />
+    <label>金額</label>
+    <input type="number" id="payment-amount" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('payment-modal')">取消</button>
+      <button class="btn-primary" onclick="savePayment()">確認繳款</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  checkAuth();
+  loadSelects();
+  loadContracts();
+  loadDeposits();
+  loadPayments();
+
+  function loadSelects() {
+    fetchData("getContacts", { type: "顧客" }, res => {
+      const sel = document.getElementById("contract-customer");
+      (res.data || []).forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+    });
+    fetchData("getInventory", { status: "可租" }, res => {
+      const sel = document.getElementById("contract-instrument");
+      (res.data || []).forEach(i => sel.innerHTML += `<option value="${i.id}">${i.name}</option>`);
+    });
+  }
+
+  function loadContracts() {
+    const status = document.getElementById("filter-contract-status").value;
+    fetchData("getContracts", { status }, res => {
+      const list = document.getElementById("contract-list");
+      if (!res.data || res.data.length === 0) { list.innerHTML = `<div class="empty">尚無資料</div>`; return; }
+      list.innerHTML = res.data.map(c => `
+        <div class="card">
+          <div class="card-row">
+            <span class="card-title">${escapeHtml(c.customer)}｜${escapeHtml(c.instrument)}</span>
+            <span class="badge badge-${contractColor(c.status)}">${c.status}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-sub">${c.start} ～ ${c.end}｜月租 $${formatCurrency(c.rent)}｜${escapeHtml(c.renew)}</span>
+          </div>
+          <div class="card-actions">
+            <button class="btn-small" onclick="openRenewModal('${c.id}')">續租</button>
+            <button class="btn-small btn-end" onclick="endContract('${c.id}')">結束合約</button>
+          </div>
+        </div>`).join("");
+    });
+  }
+
+  function loadDeposits() {
+    fetchData("getDeposits", {}, res => {
+      const list = document.getElementById("deposit-list");
+      if (!res.data || res.data.length === 0) { list.innerHTML = `<div class="empty">尚無資料</div>`; return; }
+      list.innerHTML = res.data.map(d => `
+        <div class="card">
+          <div class="card-row">
+            <span class="card-title">${escapeHtml(d.customer)}</span>
+            <span class="badge badge-${d.status === "持有中" ? "blue" : "green"}">${d.status}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-sub">押金 $${formatCurrency(d.amount)}｜繳交 ${d.paidDate}${d.returnDate ? "｜退還 " + d.returnDate : ""}</span>
+          </div>
+          ${d.status === "持有中" ? `<button class="btn-small" onclick="returnDeposit('${d.id}')">退還押金</button>` : ""}
+        </div>`).join("");
+    });
+  }
+
+  function loadPayments() {
+    const status = document.getElementById("filter-payment-status").value;
+    fetchData("getPayments", { status }, res => {
+      const list = document.getElementById("payment-list");
+      if (!res.data || res.data.length === 0) { list.innerHTML = `<div class="empty">尚無資料</div>`; return; }
+      list.innerHTML = res.data.map(p => `
+        <div class="card">
+          <div class="card-row">
+            <span class="card-title">${escapeHtml(p.customer)}｜${escapeHtml(p.instrument)}</span>
+            <span class="badge badge-${paymentColor(p.status)}">${p.status}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-sub">${escapeHtml(p.period)}｜應繳 ${p.dueDate}｜$${formatCurrency(p.amount)}</span>
+          </div>
+          ${p.status !== "已繳清" ? `<button class="btn-small" onclick="openPaymentModal(${JSON.stringify(p).replace(/"/g,'&quot;')})">登錄繳款</button>` : ""}
+        </div>`).join("");
+    });
+  }
+
+  function contractColor(s) {
+    return { "租用中": "blue", "即將到期": "orange", "已結束": "gray" }[s] || "gray";
+  }
+  function paymentColor(s) {
+    return { "已繳清": "green", "未繳": "orange", "逾期": "red" }[s] || "gray";
+  }
+
+  function openContractModal() { document.getElementById("contract-modal").style.display = "flex"; }
+
+  function openPaymentModal(p) {
+    document.getElementById("payment-id").value = p.id;
+    document.getElementById("payment-info").textContent = `${p.customer}｜${p.instrument}｜${p.period}｜應繳 $${formatCurrency(p.amount)}`;
+    document.getElementById("payment-amount").value = p.amount;
+    document.getElementById("payment-date").value = new Date().toISOString().slice(0,10);
+    document.getElementById("payment-modal").style.display = "flex";
+  }
+
+  function saveContract() {
+    fetchData("saveContract", {
+      customer: document.getElementById("contract-customer").value,
+      instrument: document.getElementById("contract-instrument").value,
+      renew: document.getElementById("contract-renew").value,
+      start: document.getElementById("contract-start").value,
+      end: document.getElementById("contract-end").value,
+      rent: document.getElementById("contract-rent").value,
+      dueDay: document.getElementById("contract-due-day").value,
+      deposit: document.getElementById("contract-deposit").value,
+      note: document.getElementById("contract-note").value,
+    }, res => {
+      if (res.success) { showToast("合約已建立"); closeModal("contract-modal"); loadContracts(); loadDeposits(); loadPayments(); }
+    });
+  }
+
+  function savePayment() {
+    fetchData("savePayment", {
+      id: document.getElementById("payment-id").value,
+      date: document.getElementById("payment-date").value,
+      amount: document.getElementById("payment-amount").value,
+    }, res => {
+      if (res.success) { showToast("繳款已登錄"); closeModal("payment-modal"); loadPayments(); }
+    });
+  }
+
+  function returnDeposit(id) {
+    if (!confirm("確認退還押金？")) return;
+    fetchData("returnDeposit", { id, date: new Date().toISOString().slice(0,10) }, res => {
+      if (res.success) { showToast("押金已退還"); loadDeposits(); }
+    });
+  }
+
+  function endContract(id) {
+    if (!confirm("確認結束此合約？")) return;
+    fetchData("endContract", { id }, res => {
+      if (res.success) { showToast("合約已結束"); loadContracts(); }
+    });
+  }
+</script>
+</body>
+</html>

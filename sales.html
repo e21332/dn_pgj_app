@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>銷售管理</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="back-btn">⬅ 回首頁</a>
+  <h1>🛒 銷售管理</h1>
+</header>
+
+<div class="container">
+  <!-- 統計面板 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-title">本月銷售</div>
+      <div class="stat-value" id="monthly-sales">0</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-title">本月收入</div>
+      <div class="stat-value" id="monthly-income">$0</div>
+    </div>
+  </div>
+
+  <!-- 工具列 -->
+  <div class="section-title">📋 銷售記錄</div>
+  <div class="toolbar">
+    <button class="btn-primary" onclick="openSaleModal()">＋ 新增銷售</button>
+  </div>
+  
+  <!-- 銷售列表 -->
+  <div id="sales-list"><div class="loading">載入中...</div></div>
+
+</div>
+
+<a href="#" class="fab">▲</a>
+
+<!-- 新增/編輯銷售 Modal -->
+<div id="sale-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2 id="modal-title">新增銷售</h2>
+    <form id="sale-form" onsubmit="return saveSale(event)">
+      <div class="form-group">
+        <label for="sale-instrument">樂器 *</label>
+        <select id="sale-instrument" onchange="handleInstrumentChange()" required>
+          <option value="">請選擇樂器</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="sale-customer">顧客</label>
+        <select id="sale-customer">
+          <option value="">現場購買（無顧客資料）</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label for="sale-price">售價 *</label>
+        <input type="number" id="sale-price" min="0" step="1" placeholder="0" required />
+      </div>
+      
+      <div class="form-group">
+        <label for="sale-note">備註</label>
+        <input type="text" id="sale-note" placeholder="例：含琴袋、配件等" />
+      </div>
+      
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="closeModal('sale-modal')">取消</button>
+        <button type="submit" class="btn-primary">儲存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  let saleInstrumentMap = {};
+
+  // 初始化
+  checkAuth();
+  loadSelects();
+  loadSales();
+  loadStats();
+
+  // 載入選項資料
+  function loadSelects() {
+    // 載入樂器選項
+    fetchData("getInventory", {}, res => {
+      console.log("=== INVENTORY DEBUG ===");
+      console.log("API Response:", res);
+      
+      const sel = document.getElementById("sale-instrument");
+      sel.innerHTML = '<option value="">請選擇樂器</option>';
+      saleInstrumentMap = {};
+      
+      if (res.success && res.data) {
+        console.log("Inventory data loaded:", res.data.length, "items");
+        const availableInstruments = res.data.filter(i => Number(i.stock || 0) > 0);
+        availableInstruments.forEach(i => {
+          console.log("Instrument:", i.name, "Status:", i.status, "Stock:", i.stock);
+          saleInstrumentMap[i.id] = i;
+          sel.innerHTML += `<option value="${i.id}">${i.name} (${i.status || "未設定"}｜庫存 ${i.stock})</option>`;
+        });
+        if (availableInstruments.length === 0) {
+          sel.innerHTML = '<option value="">目前沒有可銷售的庫存樂器</option>';
+        }
+        console.log("Final select HTML:", sel.innerHTML);
+      } else {
+        console.log("Failed to load inventory or no data");
+        sel.innerHTML = '<option value="">No instruments available</option>';
+      }
+      console.log("=== END INVENTORY DEBUG ===");
+    });
+    
+    // 載入顧客選項
+    fetchData("getContacts", { type: "顧客" }, res => {
+      const sel = document.getElementById("sale-customer");
+      sel.innerHTML = '<option value="">現場購買（無顧客資料）</option>';
+      if (res.success && res.data) {
+        res.data.forEach(c => {
+          sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+      }
+    });
+  }
+
+  // 載入銷售記錄
+  function loadSales() {
+    const list = document.getElementById("sales-list");
+    list.innerHTML = '<div class="loading">載入中...</div>';
+    
+    fetchData("getSales", {}, res => {
+      if (!res.success || !res.data || res.data.length === 0) {
+        list.innerHTML = '<div class="empty">尚無銷售記錄</div>';
+        return;
+      }
+      
+      list.innerHTML = `
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>序號</th>
+                <th>樂器名稱</th>
+                <th>銷售金額</th>
+                <th>銷售對象</th>
+                <th>銷售日期</th>
+                <th>備註</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${res.data.map((s, index) => `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td>${escapeHtml(s.instrument)}</td>
+                  <td>$${Number(s.price).toLocaleString()}</td>
+                  <td>${escapeHtml(s.customer || '現場購買')}</td>
+                  <td>${escapeHtml(s.date || '')}</td>
+                  <td>${escapeHtml(s.note || '')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+  }
+
+  // 載入統計資料
+  function loadStats() {
+    fetchData("getSales", {}, res => {
+      if (res.success && res.data) {
+        const totalSales = res.data.length;
+        const totalIncome = res.data.reduce((sum, s) => sum + Number(s.price), 0);
+        
+        document.getElementById("monthly-sales").textContent = totalSales;
+        document.getElementById("monthly-income").textContent = `$${totalIncome.toLocaleString()}`;
+      }
+    });
+  }
+
+  // 開啟銷售Modal
+  function openSaleModal() {
+    document.getElementById("modal-title").textContent = "新增銷售";
+    document.getElementById("sale-form").reset();
+    document.getElementById("sale-modal").style.display = "flex";
+  }
+
+  function handleInstrumentChange() {
+    const instrumentId = document.getElementById("sale-instrument").value;
+    const instrument = saleInstrumentMap[instrumentId];
+    document.getElementById("sale-price").value = instrument ? Number(instrument.price || 0) : "";
+  }
+
+  // 儲存銷售記錄
+  function saveSale(event) {
+    event.preventDefault();
+    
+    const instrument = document.getElementById("sale-instrument").value;
+    const price = document.getElementById("sale-price").value;
+    
+    if (!instrument || !price) {
+      showToast("請選擇樂器並輸入售價", true);
+      return;
+    }
+    
+    const data = {
+      instrument: instrument,
+      customer: document.getElementById("sale-customer").value,
+      price: Number(price),
+      note: document.getElementById("sale-note").value
+    };
+    
+    fetchData("saveSale", data, res => {
+      if (res.success) {
+        closeModal('sale-modal');
+        loadSales();
+        loadStats();
+        showToast("銷售記錄已儲存");
+      } else {
+        showToast(res.error || "儲存失敗", true);
+      }
+    });
+  }
+</script>
+</body>
+</html>

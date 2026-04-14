@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>樂器管理</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="back-btn">⬅ 回首頁</a>
+  <h1>🎸 樂器管理</h1>
+</header>
+
+<div class="container">
+
+  <!-- 分類管理 -->
+  <div class="section-title">📁 樂器分類</div>
+  <div class="toolbar">
+    <button class="btn-primary" onclick="openCategoryModal()">＋ 新增分類</button>
+  </div>
+  <div id="category-list" class="card-list"><div class="loading">載入中...</div></div>
+
+  <!-- 庫存列表 -->
+  <div class="section-title">📦 樂器庫存</div>
+  <div class="toolbar">
+    <select id="filter-category" onchange="loadInventory()">
+      <option value="">全部分類</option>
+    </select>
+    <select id="filter-status" onchange="loadInventory()">
+      <option value="">全部狀態</option>
+      <option value="可租">可租</option>
+      <option value="已租">已租</option>
+      <option value="維修中">維修中</option>
+      <option value="販售中">販售中</option>
+    </select>
+    <button class="btn-primary" onclick="openInstrumentModal()">＋ 新增樂器</button>
+  </div>
+  <div id="inventory-list" class="card-list"><div class="loading">載入中...</div></div>
+
+</div>
+
+<!-- 回頁首 -->
+<a href="#" class="fab">▲</a>
+
+<!-- 分類 Modal -->
+<div id="category-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>新增分類</h2>
+    <label>分類名稱</label>
+    <input type="text" id="cat-name" placeholder="例：弦樂器" />
+    <label>備註</label>
+    <input type="text" id="cat-note" placeholder="選填" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('category-modal')">取消</button>
+      <button class="btn-primary" onclick="saveCategory()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 樂器 Modal -->
+<div id="instrument-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>新增樂器</h2>
+    <label>分類</label>
+    <select id="inst-category"></select>
+    <label>名稱</label>
+    <input type="text" id="inst-name" placeholder="例：4/4小提琴" />
+    <label>狀態</label>
+    <select id="inst-status">
+      <option>可租</option>
+      <option>已租</option>
+      <option>維修中</option>
+      <option>販售中</option>
+    </select>
+    <label>月租金</label>
+    <input type="number" id="inst-rent" placeholder="0" />
+    <label>售價</label>
+    <input type="number" id="inst-price" placeholder="0" />
+    <label>庫存數量</label>
+    <input type="number" id="inst-stock" placeholder="1" />
+    <label>備註</label>
+    <input type="text" id="inst-note" placeholder="選填" />
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('instrument-modal')">取消</button>
+      <button class="btn-primary" onclick="saveInstrument()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  checkAuth();
+  loadCategories();
+  loadInventory();
+
+  function loadCategories() {
+    fetchData("getCategories", {}, res => {
+      const list = document.getElementById("category-list");
+      const sel = document.getElementById("filter-category");
+      const instSel = document.getElementById("inst-category");
+      if (!res.data || res.data.length === 0) {
+        list.innerHTML = `<div class="empty">尚無分類</div>`;
+        return;
+      }
+      const html = res.data.map(c => `
+        <div class="card">
+          <span class="card-title">${escapeHtml(c.name)}</span>
+          <span class="card-sub">${escapeHtml(c.note || "")}</span>
+        </div>`).join("");
+      list.innerHTML = html;
+
+      let options = '<option value="">全部分類</option>';
+      res.data.forEach(c => options += `<option value="${c.id}">${escapeHtml(c.name)}</option>`);
+      sel.innerHTML = options;
+      instSel.innerHTML = options.replace('全部分類', '請選擇分類');
+    });
+  }
+
+  function loadInventory() {
+    const cat = document.getElementById("filter-category").value;
+    const status = document.getElementById("filter-status").value;
+    fetchData("getInventory", { category: cat, status }, res => {
+      const list = document.getElementById("inventory-list");
+      if (!res.data || res.data.length === 0) {
+        list.innerHTML = `<div class="empty">尚無資料</div>`;
+        return;
+      }
+      list.innerHTML = res.data.map(i => `
+        <div class="card">
+          <div class="card-row">
+            <span class="card-title">${escapeHtml(i.name)}</span>
+            <span class="badge badge-${statusColor(i.status)}">${i.status}</span>
+          </div>
+          <div class="card-row">
+            <span class="card-sub">${escapeHtml(i.category)}｜月租 $${formatCurrency(i.rent)}｜售價 $${formatCurrency(i.price)}｜庫存 ${i.stock} 件</span>
+          </div>
+        </div>`).join("");
+    });
+  }
+
+  function statusColor(s) {
+    return { "可租": "green", "已租": "blue", "維修中": "red", "販售中": "orange" }[s] || "gray";
+  }
+
+  function openCategoryModal() { document.getElementById("category-modal").style.display = "flex"; }
+  function openInstrumentModal() { document.getElementById("instrument-modal").style.display = "flex"; }
+
+  function saveCategory() {
+    const name = document.getElementById("cat-name").value.trim();
+    if (!name) return showToast("請輸入分類名稱", true);
+    fetchData("saveCategory", { name, note: document.getElementById("cat-note").value }, res => {
+      if (res.success) { showToast("儲存成功"); closeModal("category-modal"); loadCategories(); }
+    });
+  }
+
+  function saveInstrument() {
+    const name = document.getElementById("inst-name").value.trim();
+    if (!name) return showToast("請輸入樂器名稱", true);
+    fetchData("saveInstrument", {
+      category: document.getElementById("inst-category").value,
+      name,
+      status: document.getElementById("inst-status").value,
+      rent: document.getElementById("inst-rent").value,
+      price: document.getElementById("inst-price").value,
+      stock: document.getElementById("inst-stock").value,
+      note: document.getElementById("inst-note").value,
+    }, res => {
+      if (res.success) { showToast("儲存成功"); closeModal("instrument-modal"); loadInventory(); }
+    });
+  }
+</script>
+</body>
+</html>
