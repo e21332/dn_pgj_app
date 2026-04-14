@@ -16,7 +16,7 @@
 <div class="container">
 
   <!-- 分類管理 -->
-  <div class="section-title">📁 樂器分類</div>
+  <div class="section-title">📁 項目分類</div>
   <div class="toolbar">
     <button class="btn-primary" onclick="openCategoryModal()">＋ 新增分類</button>
   </div>
@@ -26,7 +26,7 @@
   <div class="section-title">📦 樂器庫存</div>
   <div class="toolbar">
     <select id="filter-category" onchange="loadInventory()">
-      <option value="">全部分類</option>
+      <option value="">全部項目</option>
     </select>
     <select id="filter-status" onchange="loadInventory()">
       <option value="">全部狀態</option>
@@ -111,10 +111,10 @@
         </div>`).join("");
       list.innerHTML = html;
 
-      let options = '<option value="">全部分類</option>';
+      let options = '<option value="">全部項目</option>';
       res.data.forEach(c => options += `<option value="${c.id}">${escapeHtml(c.name)}</option>`);
       sel.innerHTML = options;
-      instSel.innerHTML = options.replace('全部分類', '請選擇分類');
+      instSel.innerHTML = options.replace('全部項目', '請選擇項目分類');
     });
   }
 
